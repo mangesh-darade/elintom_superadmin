@@ -28,15 +28,94 @@ $currentHost = strtolower(trim(explode(':', $rawHost)[0]));
 
 $isHostAllowed = in_array($currentHost, $allowedHosts, true);
 if (!$isHostAllowed) {
-    foreach ($allowedHosts as $allowed) {
-        if (strpos($allowed, '*.') === 0) {
-            $suffix = substr($allowed, 2);
-            if ($currentHost === $suffix || (strlen($currentHost) > strlen('.' . $suffix) && substr($currentHost, -strlen('.' . $suffix)) === '.' . $suffix)) {
-                $isHostAllowed = true;
-                break;
+    if (filter_var($currentHost, FILTER_VALIDATE_IP) !== false) {
+        $isHostAllowed = true;
+    } else {
+        foreach ($allowedHosts as $allowed) {
+            if (strpos($allowed, '*.') === 0) {
+                $suffix = substr($allowed, 2);
+                if ($currentHost === $suffix || (strlen($currentHost) > strlen('.' . $suffix) && substr($currentHost, -strlen('.' . $suffix)) === '.' . $suffix)) {
+                    $isHostAllowed = true;
+                    break;
+                }
             }
         }
     }
+}
+
+// Check for Mobile App API requests (attendance_api/setup, ordertakingapi/setup, client_log)
+$requestUri = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+$isAttendanceSetup = (strpos($requestUri, 'attendance_api/setup') !== false) || (isset($_GET['action']) && $_GET['action'] === 'attendance_setup');
+$isOrderTakingSetup = (strpos($requestUri, 'ordertakingapi/setup') !== false) || (isset($_GET['action']) && $_GET['action'] === 'ordertaking_setup');
+$isClientLog = (strpos($requestUri, 'attendance_api/client_log') !== false);
+
+if ($isAttendanceSetup || $isOrderTakingSetup || $isClientLog) {
+    header('Content-Type: application/json; charset=utf-8');
+    require_once __DIR__ . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'MerchantRegistry.php';
+
+    if ($isClientLog) {
+        http_response_code(200);
+        exit(json_encode(array('status' => 'success', 'message' => 'Logged')));
+    }
+
+    $appType = $isOrderTakingSetup ? 'order_taking' : 'attendance';
+    $rawJson = @file_get_contents('php://input');
+    $jsonData = json_decode($rawJson, true);
+    if (!is_array($jsonData)) {
+        $jsonData = array();
+    }
+
+    $code = trim((string) ($_POST['android_code'] ?? ($_POST['order_taking_code'] ?? ($jsonData['android_code'] ?? ($jsonData['order_taking_code'] ?? '')))));
+    if ($code === '') {
+        http_response_code(400);
+        exit(json_encode(array('status' => 'error', 'message' => 'Android code is required')));
+    }
+
+    $merchant = MerchantRegistry::findByAndroidCode($code, $appType);
+    if (!$merchant) {
+        http_response_code(200);
+        exit(json_encode(array('status' => 'error', 'message' => 'Android code was not found.')));
+    }
+
+    // Check if Web store is suspended or expired
+    if ((int) ($merchant['active'] ?? 1) !== 1) {
+        exit(json_encode(array('status' => 'error', 'message' => 'URL suspended, need to contact customer care')));
+    }
+    if (!empty($merchant['plan_expiry']) && $merchant['plan_expiry'] !== '0000-00-00' && strtotime($merchant['plan_expiry']) < strtotime('today')) {
+        exit(json_encode(array('status' => 'error', 'message' => 'URL suspended, need to contact customer care')));
+    }
+
+    // Check if master Android connection is disabled or specific app is disabled
+    if ($appType === 'attendance') {
+        if ((int) ($merchant['android_active'] ?? 1) !== 1 || (int) ($merchant['app_attendance_active'] ?? 1) !== 1) {
+            exit(json_encode(array('status' => 'error', 'message' => 'Device is not ready for connect please contact to customer care')));
+        }
+    } else {
+        if ((int) ($merchant['android_active'] ?? 1) !== 1 || (int) ($merchant['app_order_taking_active'] ?? 1) !== 1) {
+            exit(json_encode(array('status' => 'error', 'message' => 'Device is not ready for connect please contact to customer care')));
+        }
+    }
+
+    $url = trim((string) $merchant['url']);
+    $parts = parse_url($url);
+    $scheme = is_array($parts) && isset($parts['scheme']) ? strtolower((string) $parts['scheme']) : '';
+    if ($url === '' || filter_var($url, FILTER_VALIDATE_URL) === false || ($scheme !== 'http' && $scheme !== 'https')) {
+        exit(json_encode(array('status' => 'error', 'message' => 'This merchant does not have a valid URL.')));
+    }
+
+    exit(json_encode(array(
+        'status' => 'success',
+        'message' => 'Setup ready',
+        'data' => array(
+            'url' => $url,
+            'code' => (string) $merchant['code'],
+            'name' => (string) $merchant['name'],
+            'app' => $appType
+        ),
+        'url' => $url,
+        'code' => (string) $merchant['code'],
+        'name' => (string) $merchant['name']
+    )));
 }
 
 if (!$isHostAllowed) {
