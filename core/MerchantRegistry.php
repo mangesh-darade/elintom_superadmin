@@ -1569,7 +1569,6 @@ class MerchantRegistry
         $resp = curl_exec($ch);
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($ch);
-        curl_close($ch);
 
         if ($code === 200 || $code === 201) {
             return array('ok' => true, 'response' => json_decode($resp, true));

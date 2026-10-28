@@ -19,13 +19,13 @@ class ElintApiClient
         $rawUrl = !empty($cfg['elintom_api_url']) ? trim((string)$cfg['elintom_api_url']) : 'http://localhost/ElintOm_PHP_8.5';
         $rawUrl = rtrim($rawUrl, '/');
 
-        // If user already typed /api/superadmin, keep it
-        if (substr($rawUrl, -15) === '/api/superadmin') {
+        // If user already typed endpoint, keep it
+        if (substr($rawUrl, -23) === '/api/elintom_superadmin' || substr($rawUrl, -15) === '/api/superadmin') {
             return $rawUrl;
         }
 
-        // Auto-append the superadmin API endpoint
-        return $rawUrl . '/api/superadmin';
+        // Auto-append the elintom superadmin API endpoint
+        return $rawUrl . '/api/elintom_superadmin';
     }
 
     /**
@@ -78,7 +78,6 @@ class ElintApiClient
         $response = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
-        curl_close($ch);
 
         if ($curlError) {
             return array('ok' => false, 'error' => "cURL error ({$url}): " . $curlError, 'http_code' => $httpCode);
