@@ -550,7 +550,10 @@ class MerchantRegistry
             $db->close();
             return array('ok' => false, 'error' => 'Database error while checking uniqueness.');
         }
-        $check->bind_param('ssss', $code, $phone, $email, $androidCode);
+        $qPhone = $phone === '' ? null : $phone;
+        $qEmail = $email === '' ? null : $email;
+        $qAndroid = $androidCode === '' ? null : $androidCode;
+        $check->bind_param('ssss', $code, $qPhone, $qEmail, $qAndroid);
         $check->execute();
         $check->bind_result($existingCode, $existingPhone, $existingEmail, $existingAndroid);
         $exists = $check->fetch();
@@ -560,10 +563,10 @@ class MerchantRegistry
             if ((string) $existingCode === $code) {
                 return array('ok' => false, 'error' => 'Merchant code / subdomain `' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '` is already taken.');
             }
-            if ((string) $existingPhone === $phone) {
+            if ($phone !== '' && (string) $existingPhone === $phone) {
                 return array('ok' => false, 'error' => 'Mobile number `' . htmlspecialchars($phone, ENT_QUOTES, 'UTF-8') . '` is already registered with another merchant.');
             }
-            if ((string) $existingEmail === $email) {
+            if ($email !== '' && (string) $existingEmail === $email) {
                 return array('ok' => false, 'error' => 'Email address `' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '` is already in use by another merchant.');
             }
             return array('ok' => false, 'error' => 'Android unique code `' . htmlspecialchars($androidCode, ENT_QUOTES, 'UTF-8') . '` is already assigned.');
@@ -583,6 +586,7 @@ class MerchantRegistry
             return array('ok' => false, 'error' => 'Cannot connect to database `' . htmlspecialchars($database, ENT_QUOTES, 'UTF-8') . '`. Please check MySQL or enable "Auto-create database".');
         }
 
+        $androidCode = $androidCode === '' ? null : $androidCode;
         $insert = $db->prepare('INSERT INTO merchants (name, phone, email, balance, android_code, url, code, database_name, hostname, db_user, db_password, plan_expiry, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())');
         if (!$insert) {
             $db->close();
@@ -658,7 +662,10 @@ class MerchantRegistry
             $db->close();
             return array('ok' => false, 'error' => 'Database check error.');
         }
-        $check->bind_param('issss', $id, $code, $phone, $email, $androidCode);
+        $qPhone = $phone === '' ? null : $phone;
+        $qEmail = $email === '' ? null : $email;
+        $qAndroid = $androidCode === '' ? null : $androidCode;
+        $check->bind_param('issss', $id, $code, $qPhone, $qEmail, $qAndroid);
         $check->execute();
         $check->bind_result($existingCode, $existingPhone, $existingEmail, $existingAndroid);
         $exists = $check->fetch();
@@ -668,14 +675,15 @@ class MerchantRegistry
             if ((string) $existingCode === $code) {
                 return array('ok' => false, 'error' => 'Merchant code `' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '` is used by another merchant.');
             }
-            if ((string) $existingPhone === $phone) {
+            if ($phone !== '' && (string) $existingPhone === $phone) {
                 return array('ok' => false, 'error' => 'Mobile number `' . htmlspecialchars($phone, ENT_QUOTES, 'UTF-8') . '` is already registered with another merchant.');
             }
-            if ((string) $existingEmail === $email) {
+            if ($email !== '' && (string) $existingEmail === $email) {
                 return array('ok' => false, 'error' => 'Email address `' . htmlspecialchars($email, ENT_QUOTES, 'UTF-8') . '` is used by another merchant.');
             }
             return array('ok' => false, 'error' => 'Android unique code `' . htmlspecialchars($androidCode, ENT_QUOTES, 'UTF-8') . '` is used by another merchant.');
         }
+        $androidCode = $androidCode === '' ? null : $androidCode;
         $save = $db->prepare('UPDATE merchants SET name = ?, phone = ?, email = ?, balance = ?, android_code = ?, url = ?, code = ?, database_name = ?, hostname = ?, db_user = ?, db_password = ?, plan_expiry = ? WHERE id = ?');
         if (!$save) {
             $db->close();
@@ -916,16 +924,16 @@ class MerchantRegistry
             return array('ok' => false, 'error' => 'Merchant business name is required (max 120 chars).');
         }
         $cleanPhone = (string) preg_replace('/\D/', '', $phone);
-        if (!preg_match('/^[0-9+\- ]{10,20}$/', $phone) || strlen($cleanPhone) < 10 || strlen($cleanPhone) > 15) {
+        if ($phone !== '' && (!preg_match('/^[0-9+\- ]{10,20}$/', $phone) || strlen($cleanPhone) < 10 || strlen($cleanPhone) > 15)) {
             return array('ok' => false, 'error' => 'Please enter a valid mobile number (10 to 15 digits).');
         }
-        if (strlen($email) > 120 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+        if ($email !== '' && (strlen($email) > 120 || filter_var($email, FILTER_VALIDATE_EMAIL) === false)) {
             return array('ok' => false, 'error' => 'Valid email address is required.');
         }
         if (!preg_match('/^\d{1,12}(\.\d{1,2})?$/', $balance)) {
             return array('ok' => false, 'error' => 'Balance must be a valid amount with up to 2 decimal places.');
         }
-        if (!preg_match('/^[A-Z0-9]{4,64}$/', $androidCode)) {
+        if ($androidCode !== '' && !preg_match('/^[A-Z0-9]{4,64}$/', $androidCode)) {
             return array('ok' => false, 'error' => 'Android unique code must be 4 to 64 alphanumeric characters.');
         }
         $urlParts = parse_url($url);
@@ -1191,6 +1199,9 @@ class MerchantRegistry
             $modStmt->close();
         }
 
+        // android_code is optional: allow NULL so multiple merchants can have no code under the UNIQUE key
+        $mysqli->query('ALTER TABLE merchants MODIFY android_code VARCHAR(64) NULL DEFAULT NULL');
+        $mysqli->query("UPDATE merchants SET android_code = NULL WHERE android_code = ''");
         $mysqli->query("UPDATE merchants SET order_taking_code = CONCAT('OT_', android_code) WHERE (order_taking_code IS NULL OR order_taking_code = '') AND android_code <> ''");
         $mysqli->query('UPDATE merchants SET android_code = UPPER(android_code) WHERE android_code <> UPPER(android_code)');
         $mysqli->query('UPDATE merchants SET order_taking_code = UPPER(order_taking_code) WHERE order_taking_code <> UPPER(order_taking_code)');

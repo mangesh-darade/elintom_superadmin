@@ -28,13 +28,13 @@
                             <span class="form-hint">Must exist or check auto-create below</span>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Mobile Number <span class="req">*</span></label>
-                            <input type="text" name="phone" class="form-input" required placeholder="e.g. 9876543210 (10-15 digits)">
+                            <label class="form-label">Mobile Number</label>
+                            <input type="text" name="phone" class="form-input" placeholder="e.g. 9876543210 (10-15 digits)">
                             <span class="form-hint">Must be unique per merchant</span>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Email Address <span class="req">*</span></label>
-                            <input type="email" name="email" class="form-input" required placeholder="e.g. admin@apexstore.com">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" name="email" class="form-input" placeholder="e.g. admin@apexstore.com">
                             <span class="form-hint">Must be unique per merchant</span>
                         </div>
                         <div class="form-group">
@@ -76,6 +76,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="reset-add-merchant" style="margin-right:auto;">Reset</button>
                     <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
                     <button type="submit" class="btn-primary-action">
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -111,12 +112,12 @@
                             <input type="text" name="database_name" id="edit-database" class="form-input form-input-code" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Mobile Number <span class="req">*</span></label>
-                            <input type="text" name="phone" id="edit-phone" class="form-input" required>
+                            <label class="form-label">Mobile Number</label>
+                            <input type="text" name="phone" id="edit-phone" class="form-input">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Email Address <span class="req">*</span></label>
-                            <input type="email" name="email" id="edit-email" class="form-input" required>
+                            <label class="form-label">Email Address</label>
+                            <input type="email" name="email" id="edit-email" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Android Unique Code</label>
@@ -200,8 +201,8 @@
                             <input type="email" name="email" id="clone-email" class="form-input" placeholder="Can use same email as parent store">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">New Android Unique Code <span class="req">*</span></label>
-                            <input type="text" name="android_code" id="clone-android" class="form-input form-input-code" required placeholder="e.g. APEX02" style="text-transform: uppercase;">
+                            <label class="form-label">New Android Unique Code</label>
+                            <input type="text" name="android_code" id="clone-android" class="form-input form-input-code" placeholder="e.g. APEX02" style="text-transform: uppercase;">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Target Full URL</label>
@@ -391,6 +392,44 @@
                 openAddBtn.addEventListener('click', function () {
                     modalAdd.classList.add('open');
                 });
+            }
+
+            // Add-merchant draft persistence (localStorage) + Reset
+            if (modalAdd) {
+                var addForm = modalAdd.querySelector('form');
+                var DRAFT_KEY = 'merchant_add_draft';
+                var skipDraft = ['csrf_token', 'db_password'];
+                var saveDraft = function () {
+                    try {
+                        var d = {};
+                        Array.prototype.forEach.call(addForm.elements, function (el) {
+                            if (!el.name || skipDraft.indexOf(el.name) !== -1) return;
+                            d[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+                        });
+                        localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+                    } catch (e) {}
+                };
+                try {
+                    var saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+                    if (saved) {
+                        Array.prototype.forEach.call(addForm.elements, function (el) {
+                            if (!el.name || !(el.name in saved)) return;
+                            if (el.type === 'checkbox') el.checked = !!saved[el.name]; else el.value = saved[el.name];
+                        });
+                    }
+                } catch (e) {}
+                addForm.addEventListener('input', saveDraft);
+                addForm.addEventListener('change', saveDraft);
+                addForm.addEventListener('submit', function () {
+                    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+                });
+                var resetBtn = document.getElementById('reset-add-merchant');
+                if (resetBtn) {
+                    resetBtn.addEventListener('click', function () {
+                        addForm.reset();
+                        try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+                    });
+                }
             }
 
             document.querySelectorAll('[data-close-modal]').forEach(function (btn) {

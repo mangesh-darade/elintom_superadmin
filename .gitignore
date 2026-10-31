@@ -1,3 +1,2 @@
-config/master.php
 state/*
 !state/.htaccess
