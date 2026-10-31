@@ -52,7 +52,7 @@
                         <?php } ?>
                     </td>
                     <td style="text-align: right; white-space: nowrap;">
-                        <a href="index.php?action=backup_db&id=<?php echo (int) $m['id']; ?>" class="action-btn action-btn-backup btn-action-backup" title="Download MySQL Backup (.sql)" aria-label="Download MySQL Backup">
+                        <a href="index.php?action=backup_db&id=<?php echo (int) $m['id']; ?>&csrf_token=<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>" class="action-btn action-btn-backup btn-action-backup" title="Download MySQL Backup (.sql)" aria-label="Download MySQL Backup">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         </a>
                     </td>

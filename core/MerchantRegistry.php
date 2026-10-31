@@ -1562,8 +1562,9 @@ class MerchantRegistry
             'X-API-Key: ' . $apiKey,
             'Accept: application/json'
         ));
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        $sslVerify = self::masterConfig()['ssl_verify'] ?? true;
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, (bool) $sslVerify);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $sslVerify ? 2 : 0);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
         $resp = curl_exec($ch);

@@ -10,7 +10,6 @@ define('MERCHANTS_ADMIN_ACCESS', true);
 // Enforce modern HTTP Security Headers
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
-header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 
 // Restrict Super Admin access to authorized hostnames only
@@ -28,19 +27,56 @@ $currentHost = strtolower(trim(explode(':', $rawHost)[0]));
 
 $isHostAllowed = in_array($currentHost, $allowedHosts, true);
 if (!$isHostAllowed) {
-    if (filter_var($currentHost, FILTER_VALIDATE_IP) !== false) {
-        $isHostAllowed = true;
-    } else {
-        foreach ($allowedHosts as $allowed) {
-            if (strpos($allowed, '*.') === 0) {
-                $suffix = substr($allowed, 2);
-                if ($currentHost === $suffix || (strlen($currentHost) > strlen('.' . $suffix) && substr($currentHost, -strlen('.' . $suffix)) === '.' . $suffix)) {
-                    $isHostAllowed = true;
-                    break;
+    foreach ($allowedHosts as $allowed) {
+        if (strpos($allowed, '*.') === 0) {
+            $suffix = substr($allowed, 2);
+            if ($currentHost === $suffix || (strlen($currentHost) > strlen('.' . $suffix) && substr($currentHost, -strlen('.' . $suffix)) === '.' . $suffix)) {
+                $isHostAllowed = true;
+                break;
+            }
+        }
+    }
+}
+
+// File based rate limiter (per IP, survives cookie resets)
+function rlFile($bucket, $ip)
+{
+    $dir = __DIR__ . DIRECTORY_SEPARATOR . 'state';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0700, true);
+    }
+    return $dir . DIRECTORY_SEPARATOR . 'rl_' . $bucket . '_' . md5($ip) . '.json';
+}
+function rlLoad($bucket, $ip, $window)
+{
+    $file = rlFile($bucket, $ip);
+    $hits = array();
+    if (is_file($file)) {
+        $data = json_decode((string) @file_get_contents($file), true);
+        if (is_array($data)) {
+            $cut = time() - $window;
+            foreach ($data as $t) {
+                if (is_int($t) && $t >= $cut) {
+                    $hits[] = $t;
                 }
             }
         }
     }
+    return $hits;
+}
+function rlBlocked($bucket, $ip, $max, $window)
+{
+    return count(rlLoad($bucket, $ip, $window)) >= $max;
+}
+function rlHit($bucket, $ip, $window)
+{
+    $hits = rlLoad($bucket, $ip, $window);
+    $hits[] = time();
+    @file_put_contents(rlFile($bucket, $ip), json_encode($hits), LOCK_EX);
+}
+function rlClear($bucket, $ip)
+{
+    @unlink(rlFile($bucket, $ip));
 }
 
 // Check for Mobile App API requests (attendance_api/setup, ordertakingapi/setup, client_log)
@@ -71,8 +107,15 @@ if ($isAttendanceSetup || $isOrderTakingSetup || $isClientLog) {
         exit(json_encode(array('status' => 'error', 'message' => 'Android code is required')));
     }
 
+    $clientIp = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+    if (rlBlocked('setup', $clientIp, 20, 600)) {
+        http_response_code(429);
+        exit(json_encode(array('status' => 'error', 'message' => 'Too many attempts. Try again later.')));
+    }
+
     $merchant = MerchantRegistry::findByAndroidCode($code, $appType);
     if (!$merchant) {
+        rlHit('setup', $clientIp, 600);
         http_response_code(200);
         exit(json_encode(array('status' => 'error', 'message' => 'Android code was not found.')));
     }
@@ -190,13 +233,10 @@ if ($action === 'login') {
     verifyCsrfToken();
 
     $ip = $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
-    $lockKey = 'login_lock_' . md5($ip);
-    $failKey = 'login_fails_' . md5($ip);
 
-    // Rate limit check
-    if (isset($_SESSION[$lockKey]) && time() < $_SESSION[$lockKey]) {
-        $waitMins = max(1, (int) ceil(($_SESSION[$lockKey] - time()) / 60));
-        setFlash('error', "Too many failed attempts. Locked out for {$waitMins} minute(s).");
+    // Rate limit check (per IP, 5 failures / 15 minutes)
+    if (rlBlocked('login', $ip, 5, 900)) {
+        setFlash('error', 'Too many failed attempts. Locked out for up to 15 minutes.');
         header('Location: index.php');
         exit;
     }
@@ -212,8 +252,7 @@ if ($action === 'login') {
     }
 
     if ($verifiedId > 0) {
-        unset($_SESSION[$failKey]);
-        unset($_SESSION[$lockKey]);
+        rlClear('login', $ip);
         session_regenerate_id(true);
 
         $_SESSION['elint_master_admin_id'] = $verifiedId;
@@ -225,14 +264,11 @@ if ($action === 'login') {
         header('Location: index.php');
         exit;
     } else {
-        $_SESSION[$failKey] = ($_SESSION[$failKey] ?? 0) + 1;
-        if ($_SESSION[$failKey] >= 5) {
-            $_SESSION[$lockKey] = time() + (15 * 60);
-            $_SESSION[$failKey] = 0;
+        rlHit('login', $ip, 900);
+        if (rlBlocked('login', $ip, 5, 900)) {
             setFlash('error', 'Too many failed login attempts. Locked for 15 minutes.');
         } else {
-            $remaining = 5 - $_SESSION[$failKey];
-            setFlash('error', "Invalid admin username or password. ({$remaining} attempts remaining)");
+            setFlash('error', 'Invalid admin username or password.');
         }
         header('Location: index.php');
         exit;
@@ -603,6 +639,10 @@ if ($action === 'sync_storage') {
 
 // 7. 1-CLICK TENANT DATABASE BACKUP (.sql download)
 if ($action === 'backup_db') {
+    if (!hash_equals((string)$_SESSION['csrf_token'], (string)($_GET['csrf_token'] ?? ''))) {
+        http_response_code(403);
+        exit('403 Forbidden: invalid or missing CSRF token.');
+    }
     $id = (int)($_GET['id'] ?? 0);
     $target = MerchantRegistry::getMerchantById($id);
 

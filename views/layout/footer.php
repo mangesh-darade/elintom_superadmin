@@ -267,12 +267,21 @@
             }
 
             // Toast helper
+            function escHtml(v) {
+                return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+                    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+                });
+            }
+            function safeHref(u) {
+                return /^https?:\/\//i.test(String(u)) ? escHtml(u) : '#';
+            }
+
             function showToast(message, type) {
                 var container = document.getElementById('toast-container');
                 if (!container) return;
                 var toast = document.createElement('div');
                 toast.className = 'toast ' + (type === 'error' ? 'toast-error' : 'toast-success');
-                toast.innerHTML = (type === 'error' ? '&#9888; ' : '&#10003; ') + '<span>' + message + '</span>';
+                toast.innerHTML = (type === 'error' ? '&#9888; ' : '&#10003; ') + '<span>' + escHtml(message) + '</span>';
                 container.appendChild(toast);
                 setTimeout(function () {
                     toast.style.opacity = '0';
@@ -556,7 +565,7 @@
                     var fd = new FormData();
                     fd.append('android_code', val);
 
-                    fetch('../attendance_api/setup', {
+                    fetch('index.php?action=attendance_setup', {
                         method: 'POST',
                         body: fd
                     })
@@ -567,10 +576,10 @@
                             var resUrl = data.url || (data.data ? data.data.url : '') || '';
                             var resCode = data.code || (data.data ? data.data.code : '') || '';
                             testResult.innerHTML = '<span style="color:#059669;">&check; <strong>' +
-                                resName + '</strong> &rarr; <a href="' + resUrl + '" target="_blank" style="color:#4f46e5;">' +
-                                resUrl + '</a></span>';
+                                escHtml(resName) + '</strong> &rarr; <a href="' + safeHref(resUrl) + '" target="_blank" rel="noopener noreferrer" style="color:#4f46e5;">' +
+                                escHtml(resUrl) + '</a></span>';
                         } else {
-                            testResult.innerHTML = '<span style="color:#dc2626; font-size:11px; font-weight:600;">&times; ' + (data.message || 'Unknown error') + '</span>';
+                            testResult.innerHTML = '<span style="color:#dc2626; font-size:11px; font-weight:600;">&times; ' + escHtml(data.message || 'Unknown error') + '</span>';
                         }
                     })
                     .catch(function (err) {

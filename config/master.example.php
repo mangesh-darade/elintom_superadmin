@@ -8,7 +8,7 @@ defined('SUPER_ADMIN_ACCESS') or defined('MERCHANTS_ADMIN_ACCESS') or defined('B
 
 return array(
     'hostname' => 'localhost',
-    'username' => 'root',
+    'username' => 'elint_master_user',
     'password' => '',
     'database' => 'elint_master',
 
@@ -18,7 +18,7 @@ return array(
     'allowed_hosts'         => array(
         'localhost',
         '127.0.0.1',
-        'qa18.elintom.us',
+        'your-superadmin-domain.example',
     ),
 
     // Plesk Server Deployment Settings (Optional)
@@ -33,5 +33,8 @@ return array(
     // ElintOm ERP Base URL (e.g. 'http://localhost/ElintOm_PHP_8.5' or 'https://pos.yourdomain.com')
     // Standard endpoint '/api/superadmin' is auto-appended in code.
     'elintom_api_url'       => 'http://localhost/ElintOm_PHP_8.5',
-    'elintom_api_secret'    => 'elintom_superadmin_secret_key_85x92',
+    'elintom_api_secret'    => '',
+
+    // Verify TLS certificates for outgoing API calls. Keep true in production.
+    'ssl_verify'            => true,
 );

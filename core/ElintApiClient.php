@@ -34,7 +34,7 @@ class ElintApiClient
     public static function getApiKey()
     {
         $cfg = MerchantRegistry::masterConfig();
-        return !empty($cfg['elintom_api_secret']) ? (string)$cfg['elintom_api_secret'] : 'elintom_superadmin_secret_key_85x92';
+        return !empty($cfg['elintom_api_secret']) ? (string)$cfg['elintom_api_secret'] : '';
     }
 
     /**
@@ -50,6 +50,9 @@ class ElintApiClient
         $endpoint = ltrim($endpoint, '/');
         $url = $baseUrl . '/' . $endpoint;
         $apiKey = self::getApiKey();
+        if ($apiKey === '') {
+            return array('ok' => false, 'error' => 'elintom_api_secret is not configured in config/master.php.');
+        }
 
         $ch = curl_init();
         $headers = array(
@@ -70,8 +73,9 @@ class ElintApiClient
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        $sslVerify = MerchantRegistry::masterConfig()['ssl_verify'] ?? true;
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, (bool) $sslVerify);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, $sslVerify ? 2 : 0);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
 
