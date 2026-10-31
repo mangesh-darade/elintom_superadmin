@@ -27,6 +27,7 @@ return array(
         'localhost',
         '127.0.0.1',
         'qa18.elintom.us',
+        'superadmin.elintom.us',
     ),
 
     // Plesk Server Deployment Settings (Optional)
