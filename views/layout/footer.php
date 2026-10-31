@@ -43,8 +43,8 @@
                             <span class="form-hint">Unique hardware/kiosk code for Mobile POS</span>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Tenant Full URL</label>
-                            <input type="text" name="url" class="form-input" placeholder="e.g. http://apex.localhost/ElintOm_PHP_8.5/">
+                            <label class="form-label">Tenant Full URL <span class="req">*</span></label>
+                            <input type="text" name="url" required class="form-input" placeholder="e.g. http://apex.localhost/ElintOm_PHP_8.5/">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Plan Expiry Date</label>
@@ -60,11 +60,11 @@
                             <input type="text" name="hostname" class="form-input form-input-code" value="localhost">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">DB Username</label>
-                            <input type="text" name="db_user" class="form-input form-input-code" value="root">
+                            <label class="form-label">DB Username <span class="req">*</span></label>
+                            <input type="text" name="db_user" required class="form-input form-input-code" value="root">
                         </div>
                         <div class="form-group form-full">
-                            <label class="form-label">DB Password</label>
+                            <label class="form-label">DB Password <span class="req">*</span></label>
                             <input type="password" name="db_password" class="form-input form-input-code" placeholder="Leave empty if none">
                         </div>
                         <div class="form-group form-full" style="margin-top: 8px;">
@@ -124,8 +124,8 @@
                             <input type="text" name="android_code" id="edit-android" class="form-input form-input-code" style="text-transform: uppercase;">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Tenant Full URL</label>
-                            <input type="text" name="url" id="edit-url" class="form-input">
+                            <label class="form-label">Tenant Full URL <span class="req">*</span></label>
+                            <input type="text" name="url" required id="edit-url" class="form-input">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Plan Expiry Date</label>
@@ -140,12 +140,12 @@
                             <input type="text" name="hostname" id="edit-hostname" class="form-input form-input-code">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">DB Username</label>
-                            <input type="text" name="db_user" id="edit-db-user" class="form-input form-input-code">
+                            <label class="form-label">DB Username <span class="req">*</span></label>
+                            <input type="text" name="db_user" required id="edit-db-user" class="form-input form-input-code">
                         </div>
                         <div class="form-group form-full">
                             <label class="form-label">DB Password</label>
-                            <input type="password" name="db_password" class="form-input form-input-code" placeholder="Leave blank to keep existing password">
+                            <input type="password" name="db_password" id="edit-db-password" autocomplete="new-password" class="form-input form-input-code" placeholder="Leave blank to keep existing password">
                         </div>
                     </div>
                 </div>
@@ -464,6 +464,8 @@
                     document.getElementById('edit-balance').value = data.balance || '0.00';
                     document.getElementById('edit-hostname').value = data.hostname || 'localhost';
                     document.getElementById('edit-db-user').value = data.db_user || 'root';
+                    var editPw = document.getElementById('edit-db-password');
+                    if (editPw) { editPw.value = ''; setTimeout(function () { editPw.value = ''; }, 150); }
 
                     if (modalEdit) modalEdit.classList.add('open');
                 });

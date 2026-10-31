@@ -653,9 +653,15 @@ class MerchantRegistry
         $url = $fields['url'];
         $planExpiryVal = $fields['plan_expiry'];
 
-        if (!self::canConnect($hostname, $dbUser, $dbPass, $database)) {
+        // Only test the DB connection when connection settings actually changed
+        $connUnchanged = is_array($oldConn)
+            && (string) $oldConn['database'] === $database
+            && (string) $oldConn['hostname'] === $hostname
+            && (string) $oldConn['username'] === $dbUser
+            && (string) $oldConn['password'] === $dbPass;
+        if (!$connUnchanged && !self::canConnect($hostname, $dbUser, $dbPass, $database)) {
             $db->close();
-            return array('ok' => false, 'error' => 'Cannot connect to database `' . htmlspecialchars($database, ENT_QUOTES, 'UTF-8') . '`. Please check MySQL credentials.');
+            return array('ok' => false, 'error' => 'Cannot connect to database `' . htmlspecialchars($database, ENT_QUOTES, 'UTF-8') . '`. Please check MySQL credentials. ' . htmlspecialchars(self::$lastConnectError, ENT_QUOTES, 'UTF-8'));
         }
         $check = $db->prepare('SELECT code, phone, email, android_code FROM merchants WHERE id <> ? AND (code = ? OR phone = ? OR email = ? OR android_code = ?) LIMIT 1');
         if (!$check) {
@@ -1413,6 +1419,8 @@ class MerchantRegistry
     /**
      * Verify test connection to a target tenant database
      */
+    public static $lastConnectError = '';
+
     public static function canConnect($hostname, $dbUser = 'root', $dbPass = '', $database = '')
     {
         if ($hostname && ($database === 'localhost' || $database === '127.0.0.1')) {
@@ -1438,13 +1446,16 @@ class MerchantRegistry
         }
 
         try {
+            self::$lastConnectError = '';
             $mysqli = @new mysqli($hostname, $dbUser, $dbPass, $database);
             if ($mysqli->connect_error) {
+                self::$lastConnectError = $mysqli->connect_error . ' (user: ' . $dbUser . ', host: ' . $hostname . ')';
                 return false;
             }
             $mysqli->close();
             return true;
         } catch (Throwable $e) {
+            self::$lastConnectError = $e->getMessage() . ' (user: ' . $dbUser . ', host: ' . $hostname . ')';
             return false;
         }
     }
